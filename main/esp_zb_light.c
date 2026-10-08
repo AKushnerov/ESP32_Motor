@@ -37,6 +37,30 @@ static const char *TAG = "ESP_ZB_ON_OFF_LIGHT";
 static void button_single_click_event_cb(void *arg, void *data)
 {
     ESP_LOGI(TAG, "Button single click!");
+
+    /* 1. Читаем текущее состояние из локальной базы данных Zigbee */
+    bool current_on_off;
+    esp_zb_zcl_attr_t *attr = esp_zb_zcl_get_attribute(HA_ESP_LIGHT_ENDPOINT, 
+                            ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, 
+                            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 
+                            ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID);
+    if (attr != NULL)
+    {
+        current_on_off = *(bool*)attr->data_p;
+
+        /* 2. Меняем значение на противоположное */
+        bool new_on_off = !current_on_off;
+        
+        /* 3. Записываем новое значение в атрибут (это обновит состояние и триггернет отчет в сеть) */
+        esp_zb_zcl_set_attribute_val(HA_ESP_LIGHT_ENDPOINT, 
+                                ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, 
+                                ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 
+                                ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 
+                                &new_on_off,
+                                false);
+
+        light_driver_set_power(new_on_off);
+    }
 }
 
 // Колбэк для двойного клика
@@ -48,7 +72,10 @@ static void button_double_click_event_cb(void *arg, void *data)
 // Колбэк для длинного нажатия
 static void button_long_press_event_cb(void *arg, void *data)
 {
-    ESP_LOGI(TAG, "Button long press!");
+    ESP_LOGI(TAG, "Button long press! Reset Zigbee");
+
+    /* Сброс Zigbee до заводских настроек и перезапуск */
+    esp_zb_factory_reset();
 }
 
 static void button_init()
@@ -121,6 +148,10 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
         } else {
             /* commissioning failed */
             ESP_LOGW(TAG, "Failed to initialize Zigbee stack (status: %s)", esp_err_to_name(err_status));
+
+            // Планируем вызов функции запуска Network Steering через 1000 мс
+            esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb, 
+                               ESP_ZB_BDB_MODE_NETWORK_STEERING, 5000);
         }
         break;
     case ESP_ZB_BDB_SIGNAL_STEERING:
