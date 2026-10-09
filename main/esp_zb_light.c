@@ -217,6 +217,38 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
     }
     return ret;
 }
+//Сборка эндпоинта руками через кластер. Аналог esp_zb_on_off_light_ep_create()
+static void hand_device_build(void *pvParameters)
+{
+    esp_zb_on_off_light_cfg_t light_cfg;
+    // То, что делает esp_zb_on_off_light_ep_create() внутри:
+    esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
+    esp_zb_cluster_list_add_basic_cluster(cluster_list, esp_zb_basic_cluster_create(&(light_cfg.basic_cfg)), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_identify_cluster(cluster_list, esp_zb_identify_cluster_create(&(light_cfg.identify_cfg)), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_groups_cluster(cluster_list, esp_zb_groups_cluster_create(&(light_cfg.groups_cfg)), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_scenes_cluster(cluster_list, esp_zb_scenes_cluster_create(&(light_cfg.scenes_cfg)), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_on_off_cluster(cluster_list, esp_zb_on_off_cluster_create(&(light_cfg.on_off_cfg)), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+
+    // А теперь добавляете свой кластер Analog Input:
+    esp_zb_analog_input_cluster_cfg_t analog_cfg = {
+        .out_of_service = false,
+        .status_flags = 0,
+        .present_value = 0.0f, // Начальное значение
+    };
+    esp_zb_cluster_list_add_analog_input_cluster(cluster_list, 
+        esp_zb_analog_input_cluster_create(&analog_cfg), 
+        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+
+    esp_zb_endpoint_config_t endpoint_config = {
+        .endpoint = HA_ESP_LIGHT_ENDPOINT,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+        .app_device_version = 0,
+    };
+    esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
+    esp_zb_ep_list_add_ep(ep_list, cluster_list, endpoint_config);
+    esp_zb_device_register(ep_list);
+}
 
 static void esp_zb_task(void *pvParameters)
 {
@@ -226,6 +258,21 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_on_off_light_cfg_t light_cfg = ESP_ZB_DEFAULT_ON_OFF_LIGHT_CONFIG();
     esp_zb_ep_list_t *esp_zb_on_off_light_ep = esp_zb_on_off_light_ep_create(HA_ESP_LIGHT_ENDPOINT, &light_cfg);
 
+    // Добавим кластер аналогово входа в базовый для эксперимента
+
+    // 1. Получаем список кластеров из существующего эндпоинта
+    esp_zb_cluster_list_t *cluster_list = esp_zb_ep_list_get_ep(esp_zb_on_off_light_ep, HA_ESP_LIGHT_ENDPOINT);
+    // 2. Создаём конфигурацию и сам кластер аналогового ввода
+    esp_zb_analog_input_cluster_cfg_t analog_cfg = {
+        .out_of_service = false,
+        .status_flags = 0,
+        .present_value = 0.0f, // Начальное значение
+    };
+    esp_zb_attribute_list_t *analog_cluster = esp_zb_analog_input_cluster_create(&analog_cfg);
+    // 3. Добавляем кластер в полученный список
+    esp_zb_cluster_list_add_analog_input_cluster(cluster_list, analog_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+
+    //============================================================
     zcl_basic_manufacturer_info_t info = {
         .manufacturer_name = ESP_MANUFACTURER_NAME,
         .model_identifier = ESP_MODEL_IDENTIFIER,
