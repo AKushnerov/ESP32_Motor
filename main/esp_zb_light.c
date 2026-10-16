@@ -40,7 +40,11 @@ static void button_single_click_event_cb(void *arg, void *data)
 
     /* 1. Читаем текущее состояние из локальной базы данных Zigbee */
     bool current_on_off;
-    esp_zb_zcl_attr_t *attr = esp_zb_zcl_get_attribute(HA_ESP_LIGHT_ENDPOINT, 
+    /*esp_zb_zcl_attr_t *attr = esp_zb_zcl_get_attribute(HA_ESP_LIGHT_ENDPOINT, 
+                            ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, 
+                            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 
+                            ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID);*/
+    esp_zb_zcl_attr_t *attr = esp_zb_zcl_get_attribute(1, 
                             ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, 
                             ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 
                             ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID);
@@ -52,7 +56,7 @@ static void button_single_click_event_cb(void *arg, void *data)
         bool new_on_off = !current_on_off;
         
         /* 3. Записываем новое значение в атрибут (это обновит состояние и триггернет отчет в сеть) */
-        esp_zb_zcl_set_attribute_val(HA_ESP_LIGHT_ENDPOINT, 
+        esp_zb_zcl_set_attribute_val(1, 
                                 ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, 
                                 ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, 
                                 ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 
