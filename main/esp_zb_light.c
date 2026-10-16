@@ -250,6 +250,124 @@ static void hand_device_build(void *pvParameters)
     esp_zb_device_register(ep_list);
 }
 
+static void device_builder(void *pvParameters)
+{
+    /* initialize Zigbee stack */
+    esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZED_CONFIG();
+    esp_zb_init(&zb_nwk_cfg);
+
+    // Создаём ОДИН общий список для всего устройства
+    esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
+
+    // 1 эндпоинт с информацией об устройстве. Switch + Binary
+    /*esp_zb_on_off_switch_cfg_t switch_cfg = ESP_ZB_DEFAULT_ON_OFF_SWITCH_CONFIG();
+    esp_zb_ep_list_t *esp_zb_on_off_switch_ep = esp_zb_on_off_switch_ep_create(1, &switch_cfg);
+    // Получаем список кластеров из существующего эндпоинта
+    esp_zb_cluster_list_t *cluster_list = esp_zb_ep_list_get_ep(esp_zb_on_off_switch_ep, 1);*/
+    esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
+    // Добавляем кластеры с правильными ролями (Server!)
+    // Basic
+    esp_zb_cluster_list_add_basic_cluster(cluster_list, esp_zb_basic_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Identify
+    esp_zb_cluster_list_add_identify_cluster(cluster_list, esp_zb_identify_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Groups
+    esp_zb_cluster_list_add_groups_cluster(cluster_list, esp_zb_groups_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Scenes
+    esp_zb_cluster_list_add_scenes_cluster(cluster_list, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
+    esp_zb_cluster_list_add_on_off_cluster(cluster_list, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Добавляем кластер бинарного входа
+    esp_zb_binary_input_cluster_cfg_t binary_input_cfg = {
+        .out_of_service = false,  // Атрибут OutOfService
+        .present_value  = false,  // Атрибут PresentValue (текущее состояние входа)
+        .status_flags   = 0,      // Атрибут StatusFlags
+    };
+    esp_zb_attribute_list_t *binput_cluster = esp_zb_binary_input_cluster_create(&binary_input_cfg);
+    // Добавляем кластер в список кластеров
+    esp_zb_cluster_list_add_binary_input_cluster(cluster_list,binput_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Добавляем эндпоинт в ОБЩИЙ список
+    esp_zb_endpoint_config_t ep1_config = {
+        .endpoint = 1,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        .app_device_version = 0,
+    };
+    esp_zb_ep_list_add_ep(ep_list, cluster_list, ep1_config);
+
+    zcl_basic_manufacturer_info_t info = {
+        .manufacturer_name = ESP_MANUFACTURER_NAME,
+        .model_identifier = ESP_MODEL_IDENTIFIER,
+    };
+
+    // 2 эндпоинт с информацией об устройстве. Switch + Binary
+    /*esp_zb_on_off_switch_cfg_t switch_cfg_1 = ESP_ZB_DEFAULT_ON_OFF_SWITCH_CONFIG();
+    esp_zb_ep_list_t *esp_zb_on_off_switch_ep_1 = esp_zb_on_off_switch_ep_create(2, &switch_cfg_1);
+    // Получаем список кластеров из существующего эндпоинта
+    esp_zb_cluster_list_t *cluster_list_1 = esp_zb_ep_list_get_ep(esp_zb_on_off_switch_ep_1, 2);*/
+    esp_zb_cluster_list_t *cluster_list_1 = esp_zb_zcl_cluster_list_create();
+    // Добавляем кластеры с правильными ролями (Server!)
+    // Groups
+    esp_zb_cluster_list_add_groups_cluster(cluster_list_1, esp_zb_groups_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Scenes
+    esp_zb_cluster_list_add_scenes_cluster(cluster_list_1, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
+    esp_zb_cluster_list_add_on_off_cluster(cluster_list_1, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Добавляем кластер бинарного входа
+    esp_zb_binary_input_cluster_cfg_t binary_input_cfg_1 = {
+        .out_of_service = false,  // Атрибут OutOfService
+        .present_value  = false,  // Атрибут PresentValue (текущее состояние входа)
+        .status_flags   = 0,      // Атрибут StatusFlags
+    };
+    esp_zb_attribute_list_t *binput_cluster_1 = esp_zb_binary_input_cluster_create(&binary_input_cfg_1);
+    // Добавляем кластер в список кластеров
+    esp_zb_cluster_list_add_binary_input_cluster(cluster_list_1,binput_cluster_1,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_endpoint_config_t ep2_config = {
+        .endpoint = 2,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        .app_device_version = 0,
+    };
+    esp_zb_ep_list_add_ep(ep_list, cluster_list_1, ep2_config);
+
+    // 3 эндпоинт с информацией об устройстве. Switch + Analog(temperature)
+    /*esp_zb_on_off_switch_cfg_t switch_cfg_2 = ESP_ZB_DEFAULT_ON_OFF_SWITCH_CONFIG();
+    esp_zb_ep_list_t *esp_zb_on_off_switch_ep_2 = esp_zb_on_off_switch_ep_create(3, &switch_cfg_2);
+    // Получаем список кластеров из существующего эндпоинта
+    esp_zb_cluster_list_t *cluster_list_2 = esp_zb_ep_list_get_ep(esp_zb_on_off_switch_ep_2, 3);*/
+    esp_zb_cluster_list_t *cluster_list_2 = esp_zb_zcl_cluster_list_create();
+    // Добавляем кластеры с правильными ролями (Server!)
+    // Groups
+    esp_zb_cluster_list_add_groups_cluster(cluster_list_2, esp_zb_groups_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Scenes
+    esp_zb_cluster_list_add_scenes_cluster(cluster_list_2, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
+    esp_zb_cluster_list_add_on_off_cluster(cluster_list_2, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    // Добавляем кластер аналогово входа
+    esp_zb_analog_input_cluster_cfg_t analog_cfg = {
+        .out_of_service = false,
+        .status_flags = 0,
+        .present_value = 20.0f, // Начальное значение
+    };
+    esp_zb_attribute_list_t *analog_cluster = esp_zb_analog_input_cluster_create(&analog_cfg);
+    // Добавляем кластер в список кластеров
+    esp_zb_cluster_list_add_analog_input_cluster(cluster_list_2,analog_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_endpoint_config_t ep3_config = {
+        .endpoint = 3,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        .app_device_version = 0,
+    };
+    esp_zb_ep_list_add_ep(ep_list, cluster_list_2, ep3_config);
+
+    esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, 1, &info);
+
+    esp_zb_device_register(ep_list);
+    esp_zb_core_action_handler_register(zb_action_handler);
+    esp_zb_set_primary_network_channel_set(ESP_ZB_PRIMARY_CHANNEL_MASK);
+    ESP_ERROR_CHECK(esp_zb_start(false));
+    esp_zb_stack_main_loop();
+}
+
 static void esp_zb_task(void *pvParameters)
 {
     /* initialize Zigbee stack */
@@ -337,5 +455,6 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
-    xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
+    //xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
+    xTaskCreate(device_builder, "Zigbee_main", 4096, NULL, 5, NULL);
 }
