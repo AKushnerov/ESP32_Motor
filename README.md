@@ -65,3 +65,10 @@ I (11618) ESP_ZB_ON_OFF_LIGHT: Light sets to Off
 ## Troubleshooting
 
 For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+
+### Проверка устройства с 3 эндпоинтами показаний датчиков
+
+3 эндпоинта:    1. Датчик температуры 
+                2. Датчик давления 
+                3. Аналоговый ввод
+Все датчики эмулируют изменение величины. Для датчика температуры изменен reporting.

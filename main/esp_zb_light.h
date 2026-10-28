@@ -25,6 +25,7 @@
 /* Basic manufacturer information */
 #define ESP_MANUFACTURER_NAME "\x09""ESPRESSIF"      /* Customized manufacturer name */
 #define ESP_MODEL_IDENTIFIER "\x07"CONFIG_IDF_TARGET /* Customized model identifier */
+#define ESP_MODEL_IDENTIFIER_TEST "\x0B""Esp32EPTest" /* Customized model identifier */
 
 #define MY_MANUFACTURER_NAME "\x0F""CustomEspressif"      /* Customized manufacturer name */
 #define MY_MODEL_IDENTIFIER "\x0F""Esp32LightShade" /* Customized model identifier */

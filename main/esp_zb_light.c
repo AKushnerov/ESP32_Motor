@@ -32,6 +32,10 @@
 
 #define HA_ESP_SHADE_ENDPOINT   11
 static const char *TAG = "ESP_ZB_ON_OFF_LIGHT";
+int16_t curr_term = 2500;
+int16_t curr_pres = 100;
+float input_val = 20;
+static bool zb_joined = false;
 /********************* Define functions **************************/
 // Колбэк для одиночного клика
 static void button_single_click_event_cb(void *arg, void *data)
@@ -149,6 +153,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
             } else {
                 ESP_LOGI(TAG, "Device rebooted");
             }
+            zb_joined = true;
         } else {
             /* commissioning failed */
             ESP_LOGW(TAG, "Failed to initialize Zigbee stack (status: %s)", esp_err_to_name(err_status));
@@ -279,7 +284,7 @@ static void device_builder(void *pvParameters)
     // Scenes
     esp_zb_cluster_list_add_scenes_cluster(cluster_list, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
-    esp_zb_cluster_list_add_on_off_cluster(cluster_list, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    /*esp_zb_cluster_list_add_on_off_cluster(cluster_list, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // Добавляем кластер бинарного входа
     esp_zb_binary_input_cluster_cfg_t binary_input_cfg = {
         .out_of_service = false,  // Атрибут OutOfService
@@ -288,19 +293,48 @@ static void device_builder(void *pvParameters)
     };
     esp_zb_attribute_list_t *binput_cluster = esp_zb_binary_input_cluster_create(&binary_input_cfg);
     // Добавляем кластер в список кластеров
-    esp_zb_cluster_list_add_binary_input_cluster(cluster_list,binput_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_binary_input_cluster(cluster_list,binput_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);*/
+    esp_zb_temperature_meas_cluster_cfg_t temp_meas_cfg = {
+        .measured_value = curr_term,
+        .min_value = -3000,
+        .max_value = 8000
+    };
+    esp_zb_attribute_list_t *temp_cluster = esp_zb_temperature_meas_cluster_create(&temp_meas_cfg);
+    esp_zb_cluster_list_add_temperature_meas_cluster(cluster_list, temp_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // Добавляем эндпоинт в ОБЩИЙ список
     esp_zb_endpoint_config_t ep1_config = {
         .endpoint = 1,
         .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
-        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        .app_device_id = ESP_ZB_HA_TEMPERATURE_SENSOR_DEVICE_ID,
+        //.app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
         .app_device_version = 0,
     };
     esp_zb_ep_list_add_ep(ep_list, cluster_list, ep1_config);
 
+    // Репортинг
+    /*esp_zb_zcl_reporting_info_t reporting_info = {
+        .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
+        .ep = 1,  // Строго совпадает с .endpoint = 1 из ep1_config
+        .cluster_id = ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
+        .cluster_role = ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+        .attr_id = ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,
+        
+        .u.send_info = {
+            .min_interval = 5,   // Не слать отчеты чаще, чем раз в 10 секунд
+            .max_interval = 300,  // Принудительный отчет раз в 5 минут (300 сек), даже если температура стабильна
+            .delta.value_u16 = 50 // Отправить отчет немедленно, если температура изменилась на 0.5°C (50 единиц)
+        }
+    };
+
+    // Регистрируем правило в стеке
+    esp_err_t err = esp_zb_zcl_update_reporting_info(&reporting_info);
+    if (err != ESP_OK) {
+        ESP_LOGE("ZB_TEMP", "Не удалось обновить правила репортинга: %s", esp_err_to_name(err));
+    }*/
+
     zcl_basic_manufacturer_info_t info = {
         .manufacturer_name = ESP_MANUFACTURER_NAME,
-        .model_identifier = ESP_MODEL_IDENTIFIER,
+        .model_identifier = ESP_MODEL_IDENTIFIER_TEST,
     };
 
     // 2 эндпоинт с информацией об устройстве. Switch + Binary
@@ -315,7 +349,7 @@ static void device_builder(void *pvParameters)
     // Scenes
     esp_zb_cluster_list_add_scenes_cluster(cluster_list_1, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
-    esp_zb_cluster_list_add_on_off_cluster(cluster_list_1, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    /*esp_zb_cluster_list_add_on_off_cluster(cluster_list_1, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // Добавляем кластер бинарного входа
     esp_zb_binary_input_cluster_cfg_t binary_input_cfg_1 = {
         .out_of_service = false,  // Атрибут OutOfService
@@ -324,11 +358,18 @@ static void device_builder(void *pvParameters)
     };
     esp_zb_attribute_list_t *binput_cluster_1 = esp_zb_binary_input_cluster_create(&binary_input_cfg_1);
     // Добавляем кластер в список кластеров
-    esp_zb_cluster_list_add_binary_input_cluster(cluster_list_1,binput_cluster_1,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_cluster_list_add_binary_input_cluster(cluster_list_1,binput_cluster_1,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);*/
+    esp_zb_pressure_meas_cluster_cfg_t pres_meas_cfg = {
+        .measured_value = curr_pres,
+        .min_value = 0,
+        .max_value = 2000,
+    };
+    esp_zb_attribute_list_t *press_cluster = esp_zb_pressure_meas_cluster_create(&pres_meas_cfg);
+    esp_zb_cluster_list_add_pressure_meas_cluster(cluster_list_1,press_cluster,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     esp_zb_endpoint_config_t ep2_config = {
         .endpoint = 2,
         .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
-        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        //.app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
         .app_device_version = 0,
     };
     esp_zb_ep_list_add_ep(ep_list, cluster_list_1, ep2_config);
@@ -345,12 +386,12 @@ static void device_builder(void *pvParameters)
     // Scenes
     esp_zb_cluster_list_add_scenes_cluster(cluster_list_2, esp_zb_scenes_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // On/Off — КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Server роль!
-    esp_zb_cluster_list_add_on_off_cluster(cluster_list_2, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    //esp_zb_cluster_list_add_on_off_cluster(cluster_list_2, esp_zb_on_off_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
     // Добавляем кластер аналогово входа
     esp_zb_analog_input_cluster_cfg_t analog_cfg = {
         .out_of_service = false,
         .status_flags = 0,
-        .present_value = 20.0f, // Начальное значение
+        .present_value = input_val, // Начальное значение
     };
     esp_zb_attribute_list_t *analog_cluster = esp_zb_analog_input_cluster_create(&analog_cfg);
     // Добавляем кластер в список кластеров
@@ -358,12 +399,40 @@ static void device_builder(void *pvParameters)
     esp_zb_endpoint_config_t ep3_config = {
         .endpoint = 3,
         .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
-        .app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        //.app_device_id = ESP_ZB_HA_ON_OFF_SWITCH_DEVICE_ID,
+        .app_device_id = ESP_ZB_HA_SIMPLE_SENSOR_DEVICE_ID,
         .app_device_version = 0,
     };
     esp_zb_ep_list_add_ep(ep_list, cluster_list_2, ep3_config);
 
     esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, 1, &info);
+
+    /*esp_zb_zcl_reporting_info_t new_term_info = {
+        .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
+        .ep = 1,
+        .cluster_id = ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
+        .cluster_role = ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+        .attr_id = ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,
+        .manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC,
+        .u.send_info = {
+            .min_interval = 5,
+            .max_interval = 300,
+            .def_min_interval = 5,
+            .def_max_interval = 300,
+            .delta.s16 = 200,
+        },
+        .dst = {
+            .profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+            .short_addr = 0x0000,
+            .endpoint = 1,
+        },
+    };
+    esp_zb_lock_acquire(portMAX_DELAY);
+    esp_err_t ret = esp_zb_zcl_update_reporting_info(&new_term_info);
+    esp_zb_lock_release();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to update reporting info: %s", esp_err_to_name(ret));
+    }*/
 
     esp_zb_device_register(ep_list);
     esp_zb_core_action_handler_register(zb_action_handler);
@@ -450,6 +519,108 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_stack_main_loop();
 }
 
+void TermUpdate(void *pvParameters)
+{
+    while(1)
+    {
+        curr_term += 25;
+        if (curr_term > 7000) curr_term = 1500;
+        //esp_zb_zcl_attr_set_val(1,ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,&curr_term);
+        esp_zb_lock_acquire(portMAX_DELAY);
+        esp_zb_zcl_set_attribute_val(1, ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
+            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,
+            &curr_term, false);
+        esp_zb_lock_release();
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+void AnalogUpdate(void *pvParameters)
+{
+    while(1)
+    {
+        input_val += 0.1;
+        if (input_val > 80) input_val = 10;
+        //esp_zb_zcl_attr_set_val(1,ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,&curr_term);
+        esp_zb_lock_acquire(portMAX_DELAY);
+        esp_zb_zcl_set_attribute_val(3, ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID,
+            &input_val, false);
+        esp_zb_lock_release();
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+}
+
+void PressUpdate(void *pvParameters)
+{
+    while(1)
+    {
+        curr_pres += 1;
+        if (curr_pres > 2000) curr_pres = 100;
+        //esp_zb_zcl_attr_set_val(1,ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,&curr_term);
+        esp_zb_lock_acquire(portMAX_DELAY);
+        esp_zb_zcl_set_attribute_val(2, ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT,
+            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID,
+            &curr_pres, false);
+
+        // Вручную отправляем отчёт пока падает при активации данной части кода. Возможно нужно прописать esp_zb_zcl_update_reporting_info
+        //Проверяем, что устройство в сети
+        /*if (esp_zb_bdb_dev_joined()) {
+            esp_zb_zcl_report_attr_cmd_t report_cmd = {
+                .address_mode = ESP_ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT,
+                .zcl_basic_cmd = {
+                    .src_endpoint = 2,
+                    .dst_addr_u.addr_short = 0,
+                    .dst_endpoint = 1,
+                },
+                .clusterID = ESP_ZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT,
+                .attributeID = ESP_ZB_ZCL_ATTR_PRESSURE_MEASUREMENT_VALUE_ID,
+                .manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC,
+            };
+            esp_zb_zcl_report_attr_cmd_req(&report_cmd);
+        }*/
+        
+        esp_zb_lock_release();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void ReportSetting(void *pvParameters)
+{
+    while(1)
+    {
+        if (zb_joined)
+        {
+            esp_zb_zcl_reporting_info_t new_term_info = {
+                .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
+                .ep = 1,
+                .cluster_id = ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
+                .cluster_role = ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+                .attr_id = ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID,
+                .manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC,
+                .u.send_info = {
+                    .min_interval = 5,
+                    .max_interval = 300,
+                    .def_min_interval = 5,
+                    .def_max_interval = 300,
+                    .delta.s16 = 200,
+                },
+                .dst = {
+                    .profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+                    .short_addr = 0x0000,
+                    .endpoint = 1,
+                },
+            };
+            esp_zb_lock_acquire(portMAX_DELAY);
+            esp_err_t ret = esp_zb_zcl_update_reporting_info(&new_term_info);
+            esp_zb_lock_release();
+            zb_joined = false;
+            vTaskDelete(NULL); 
+        }
+        else vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 void app_main(void)
 {
     button_init();
@@ -461,4 +632,8 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
     //xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
     xTaskCreate(device_builder, "Zigbee_main", 4096, NULL, 5, NULL);
+    xTaskCreate(TermUpdate,"term_update",1024,NULL,10,NULL);
+    xTaskCreate(AnalogUpdate,"analog_update",1024,NULL,10,NULL);
+    xTaskCreate(PressUpdate,"pres_update",1024,NULL,10,NULL);
+    xTaskCreate(ReportSetting,"report_update",1024,NULL,10,NULL);
 }
